@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <link
+      rel="stylesheet"
+      href="../node_modules/bootstrap/dist/css/bootstrap.min.css"
+    />
+
+    <!-- Include Firebase SDK -->
+
+    <!-- Include Bootstrap JS -->
+    <script src="../node_modules/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+
+    <title>Template Generator</title>
+  </head>
+
+  <body>
+    <div class="container">
+      <div class="row">
+        <form id="dynamicForm">
+          <div class="form-group col-md-6">
+            <label for="Document-Name">Document Name</label>
+            <input
+              type="text"
+              class="form-control Document-Name"
+              id="Document-Name"
+              aria-required="true"
+              placeholder="Enter field name"
+            />
+
+            <label for="field-name">Field Name</label>
+            <input
+              type="text"
+              class="form-control"
+              id="field-name"
+              placeholder="Enter field name"
+              aria-required="true"
+            />
+            <label for="field-required">Required</label>
+            <input
+              type="checkbox"
+              class="form-check-input"
+              id="field-required"
+            />
+          </div>
+
+          <div class="form-group col-md-6">
+            <label for="field-type">Field Type</label>
+            <select class="form-control field-type" id="field-type">
+              <option selected disabled>Choose one</option>
+              <option value="text">Text</option>
+              <option value="checkbox">Checkbox</option>
+              <option value="radio">Radio</option>
+              <option value="date">Date</option>
+              <option value="number">Number</option>
+              <option value="select">Select</option>
+              <option value="file">File</option>
+              <option value="country">Country</option>
+              <option value="city">City</option>
+            </select>
+          </div>
+          <div class="form-group col-md-6">
+            <label for="file-accept-container">File Accept</label>
+            <select
+              class="form-control"
+              id="file-accept-container"
+              class="file-accept-container"
+              style="display: none"
+            >
+              <option value="image/*">Images</option>
+              <option value=".pdf">PDF</option>
+            </select>
+          </div>
+
+          <div class="form-group col-md-6">
+            <button type="button" class="btn btn-primary" id="add-field">
+              Add Field
+            </button>
+          </div>
+          <div class="form-group col-md-6">
+            <button type="button" class="btn btn-primary" id="save-template">
+              Save Template
+            </button>
+          </div>
+        </form>
+      </div>
+      <div id="fields-container"></div>
+      <div id="field-option"></div>
+
+      <h3>JSON View:</h3>
+      <pre id="json-view"></pre>
+    </div>
+    <script type="module">
+      // Import the functions you need from the SDKs you need
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-app.js";
+      import {
+        getDatabase,
+        set,
+        get,
+        update,
+        remove,
+        ref,
+        child,
+      } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-database.js";
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyAes1l19ka3e_DYaSFv4Z9zTuHAoMmMa6Q",
+        authDomain: "mahdardotorg.firebaseapp.com",
+        databaseURL: "https://mahdardotorg-default-rtdb.firebaseio.com",
+        projectId: "mahdardotorg",
+        storageBucket: "mahdardotorg.appspot.com",
+        messagingSenderId: "434321616621",
+        appId: "1:434321616621:web:a6c0f7969568e738fc26e4",
+        measurementId: "G-EB7H4EJ072",
+      };
+
+      // Initialize Firebase
+      const app = initializeApp(firebaseConfig);
+      const db = getDatabase();
+
+      document.addEventListener("DOMContentLoaded", function () {
+        var fields = [];
+
+        function FindData() {
+          const dbref = ref(db);
+          get(child(dbref, "/public/temp/")).then((snapshot) => {
+            if (snapshot.exists()) {
+              console.log("====================================");
+              console.log(snapshot);
+              console.log("====================================");
+              console.log("Temp data:", snapshot.val());
+            }
+          });
+        }
+
+        FindData();
+
+        document
+          .getElementById("add-field")
+          .addEventListener("click", function () {
+            var fieldName = document.getElementById("field-name").value;
+            var fieldType = document.getElementById("field-type").value;
+            var isFieldRequired =
+              document.getElementById("field-required").checked;
+
+            var existingField = fields.find(
+              (field) => field.field_name === fieldName
+            );
+            if (existingField) {
+              alert(
+                "Field name already exists. Please choose a different name."
+              );
+              return;
+            }
+
+            var field = {
+              field_name: fieldName,
+              field_type: fieldType,
+              required: isFieldRequired,
+              visible: true,
+            };
+            if (!fieldName) {
+              alert("Enter a Name For the field");
+            } else {
+              if (
+                fieldType === "radio" ||
+                fieldType === "checkbox" ||
+                fieldType === "select"
+              ) {
+                var options = [];
+                document
+                  .querySelectorAll(".option input")
+                  .forEach(function (input) {
+                    options.push(input.value);
+                  });
+
+                if (options.length > 0) {
+                  field.options = options;
+                }
+              }
+
+              if (fieldType === "file") {
+                var fileAccept = document.getElementById(
+                  "file-accept-container"
+                ).value;
+                field.type = fileAccept;
+              }
+
+              fields.push(field);
+              updateFieldsContainer();
+              updateJsonView();
+            }
+          });
+
+        document
+          .getElementById("field-type")
+          .addEventListener("change", function () {
+            var selectedFieldType = this.value;
+            var html = "";
+
+            if (
+              selectedFieldType === "radio" ||
+              selectedFieldType === "checkbox" ||
+              selectedFieldType === "select"
+            ) {
+              var existingOptions = [];
+              document
+                .querySelectorAll(".option input")
+                .forEach(function (input) {
+                  existingOptions.push(input.value);
+                });
+
+              html += '<div class="col-md-6">';
+              html += "<h3>Options:</h3>";
+              html += '<div class="option">';
+              if (existingOptions.length > 0) {
+                existingOptions.forEach(function (option) {
+                  html +=
+                    '<input type="text" class="form-control" placeholder="Option" value="' +
+                    option +
+                    '">';
+                });
+              } else {
+                html +=
+                  '<input type="text" class="form-control" placeholder="Option">';
+              }
+              html +=
+                '<button type="button" class="btn btn-secondary add-option">Add Option</button>';
+              html += "</div>";
+              html += "</div>";
+            } else if (selectedFieldType === "file") {
+              document.getElementById("file-accept-container").style.display =
+                "block";
+            } else {
+              document.getElementById("file-accept-container").style.display =
+                "none";
+            }
+
+            document.getElementById("field-option").innerHTML = html;
+            document
+              .querySelector(".add-option")
+              .addEventListener("click", function () {
+                var optionInput = document.createElement("input");
+                optionInput.type = "text";
+                optionInput.className = "form-control";
+                optionInput.placeholder = "Option";
+                document.querySelector(".option").appendChild(optionInput);
+              });
+          });
+
+        function updateFieldsContainer() {
+          var html = '<div class="row">';
+          if (fields.length > 0) {
+            html += '<div class="col-md-6">';
+            html += "<h3>Fields:</h3>";
+            html +=
+              "<h2>Document Name: " +
+              document.getElementById("Document-Name").value +
+              "</h2>";
+            html += "<ul>";
+            fields.forEach(function (field, index) {
+              html +=
+                "<li>" +
+                field.field_name +
+                " - " +
+                field.field_type +
+                ' <span class="remove-field bg-danger text-white rounded-circle p-2" data-index="' +
+                index +
+                '"> x </span></li>';
+            });
+            html += "</ul>";
+            html += "</div>";
+          }
+          html += "</div>";
+          document.getElementById("fields-container").innerHTML = html;
+
+          document
+            .querySelectorAll(".remove-field")
+            .forEach(function (removeBtn) {
+              removeBtn.addEventListener("click", function () {
+                var index = this.dataset.index;
+                fields.splice(index, 1);
+                updateFieldsContainer();
+                updateJsonView();
+              });
+            });
+        }
+
+        function updateJsonView() {
+          var jsonText = JSON.stringify(fields, null, 2);
+          document.getElementById("json-view").textContent = jsonText;
+        }
+
+        document
+          .getElementById("save-template")
+          .addEventListener("click", function () {
+            var documentName = document.getElementById("Document-Name").value;
+
+            if (!documentName || fields.length === 0) {
+              alert(
+                "Please fill in the document name and add at least one field."
+              );
+              return;
+            }
+
+            var jsonData = {
+              template_name: documentName,
+              template_structure: fields,
+            };
+            const timestamp = new Date().getTime();
+            set(ref(db, "/public/temp/" + timestamp), jsonData)
+              .then(() => {
+                alert("bravo");
+              })
+              .catch((e) => {
+                console.log("====================================");
+                console.log("error" + e);
+                console.log("====================================");
+              });
+          });
+      });
+    </script>
+  </body>
+</html>
